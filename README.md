@@ -21,7 +21,7 @@ Celem projektu jest budowa sensora monitorującego ruch sieciowy w czasie rzeczy
 ![Detekcja Flood](media/03_flood_detector.png)
 
 * **05_port_scan_detector.cpp** - Zaawansowana detekcja skanowania (Stateful). Rozpoznaje klasyczny "port sweep" oraz ciche skany typu Stealth (SYN-RST).
-![Detekcja Skanowania](media/05_scan_detector.png)
+![Detekcja Skanowania](media/05_port_scan_detector.png)
 
 ## Analiza techniczna i wnioski
 W trakcie realizacji tych etapów skupiłem się na następujących zagadnieniach:
