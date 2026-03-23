@@ -14,7 +14,7 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u
         icmp_count++;
         
         time_t current_time = time(0);
-        if (current_time - start_time >= 1) { // Sprawdzaj co 1 sekundę
+        if (current_time - start_time >= 1) {
             if (icmp_count > 10) { 
                 std::cout << "!!! [ALERT] Wykryto Ping Flood! (" << icmp_count << " pak./s)" << std::endl;
             }

@@ -33,8 +33,7 @@ int main() {
     if (!handle) return 1;
 
     std::cout << "Nasłuchiwanie... (Ctrl+C aby przerwać)" << std::endl;
-    pcap_loop(handle, 0, packet_handler, NULL); // 0 oznacza pętlę nieskończoną
-
+    pcap_loop(handle, 0, packet_handler, NULL);
     pcap_close(handle);
     return 0;
 }
