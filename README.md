@@ -20,8 +20,9 @@ Celem projektu jest budowa sensora monitorującego ruch sieciowy w czasie rzeczy
 * **03_ping_flood_detector.cpp** - Wykrywanie ataków Ping Flood.
 ![Detekcja Flood](media/03_flood_detector.png)
 
-* **05_port_scan_detector.cpp** - Zaawansowana detekcja skanowania (Stateful). Rozpoznaje klasyczny "port sweep" oraz ciche skany typu Stealth (SYN-RST).
+* **05_port_scan_detector.cpp** - Zaawansowana analiza stanowa (Stateful) i moduł Active Response (IPS). System automatycznie blokuje agresywne hosty w firewallu iptables po wykryciu wzorców skanowania (Port Sweep, Stealth Scan).
 ![Detekcja Skanowania](media/05_port_scan_detector.png)
+![Aktywna Blokada](media/05_2_port_scan_detector.png)
 
 ## Analiza techniczna i wnioski
 W trakcie realizacji tych etapów skupiłem się na następujących zagadnieniach:
@@ -31,6 +32,7 @@ W trakcie realizacji tych etapów skupiłem się na następujących zagadnieniac
 * **Detekcja anomalii:** Opracowanie algorytmu zliczającego pakiety w oknie czasowym (1 sekunda) w celu identyfikacji ataków typu Flood.
 * **Analiza stanowa (Stateful Analysis):** Implementacja mechanizmu "pamięci" sensora przy użyciu `std::map`. Pozwala to na korelację wielu pakietów od tego samego hosta w oknie czasowym, zamiast analizowania ich w izolacji.
 * **Wzorzec SYN-RST:** Opracowanie logiki wykrywającej specyficzne zachowanie skanerów (np. `nmap -sS`), które wysyłają pakiet RST natychmiast po otrzymaniu odpowiedzi, aby uniknąć pełnego zestawienia połączenia.
+* **Active Response (IPS):** Integracja sensora z systemowym firewallem. Wykorzystanie funkcji systemowych do dynamicznego nakładania reguł DROP, co pozwala na natychmiastową izolację agresywnego hosta.
 
 ## Plany rozwoju (Next steps)
 * **Active Response:** Implementacja modułu automatycznego blokowania adresów IP poprzez dynamiczną modyfikację reguł `iptables` po przekroczeniu progu alertowego.

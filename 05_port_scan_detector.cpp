@@ -18,10 +18,23 @@ struct ConnectionInfo {
 };
 
 std::map<std::string, ConnectionInfo> tracker;
+std::set<std::string> blocked_ips;
+
+void block_ip(std::string ip) {
+    if (blocked_ips.count(ip)) return;
+
+    std::string command = "iptables -A INPUT -s " + ip + " -j DROP";
+    int result = system(command.c_str());
+    if (result == 0) {
+        std::cout << "[INFO] Zablokowano IP: " << ip << std::endl;
+        blocked_ips.insert(ip);
+    } else {
+        std::cerr << "[ERROR] Nie można zablokować IP: " << ip << std::endl;
+    }
+}
 
 void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u_char *packet) {
-    // Ethernet (14) + IP (20) minimum
-    if (pkthdr->len < 34) return;
+    if (pkthdr->len < 34) return; // Ethernet (14) + IP (20) minimum
 
     struct iphdr *ip = (struct iphdr *)(packet + 14);
     char src_ip[INET_ADDRSTRLEN];
@@ -47,9 +60,10 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u
                           << " (licznik: " << info.stealth_hit_count << "/3)" << std::endl;
                 
                 if (info.stealth_hit_count >= 3) {
-                    std::cout << "! [STEALTH] Wykryto powtarzalny wzorzec SYN->RST od: " << ip_str 
+                    std::cout << "!!! [STEALTH] Wykryto powtarzalny wzorzec SYN->RST od: " << ip_str 
                               << " - PRAWDOPODOBNY NMAP -sS!" << std::endl;
                     info.stealth_hit_count = 0;
+                    block_ip(ip_str);
                 }
             }
         }
@@ -72,6 +86,7 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u
             if (info.scanned_ports.size() > 5) {
                 std::cout << "! [ALERT] Wykryto skanowanie portów od: " << ip_str 
                           << " (unikalne porty: " << info.scanned_ports.size() << " w 5s)" << std::endl;
+                block_ip(ip_str);
                 info.scanned_ports.clear(); 
             }
         }
