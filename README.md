@@ -1,40 +1,42 @@
-# Projekt NDR/IDS na Raspberry Pi
-System wykrywania i reagowania na incydenty sieciowe (Network Detection and Response).
+# Projekt NDR/IPS (Network Detection and Response)
+Zaawansowany system wykrywania i aktywnego reagowania na incydenty sieciowe w czasie rzeczywistym.
 
 ## O Projekcie
-Celem projektu jest budowa sensora monitorującego ruch sieciowy w czasie rzeczywistym. System analizuje pakiety niskopoziomowo w celu wykrywania anomalii.
+Celem projektu jest budowa niskopoziomowego sensora monitorującego ruch sieciowy. System nie tylko analizuje nagłówki pakietów, ale wykonuje głęboką inspekcję zawartości (DPI) i autonomicznie izoluje agresywne hosty.
 
 ## Tech Stack
-* Jezyk: C++ (Sensor), Python (Analiza i Logika)
-* Biblioteki: libpcap
-* Sprzet: Raspberry Pi
+* **Język:** C++ (Sensor), Python (Planowany Dashboard)
+* **Biblioteki:** libpcap, netinet
+* **Platforma:** Linux (x86/ARM) - Optymalizowane pod Mini PC/Terminal oraz Raspberry Pi.
 
 ## Struktura Projektu i wyniki testów
 
-* **01_interface_list.cpp** - Rozpoznawanie interfejsów sieciowych.
+* **01_interface_list.cpp** - Rozpoznawanie dostępnych interfejsów sieciowych.
 ![Lista interfejsów](media/01_interface_list.png)
 
-* **02_protocol_sniffer.cpp** - Analiza nagłówków IP, TCP, UDP i ICMP.
+* **02_protocol_sniffer.cpp** - Analiza nagłówków L3 (IP) oraz L4 (TCP, UDP, ICMP).
 ![Sniffer protokołów](media/02_protocol_sniffer.png)
 
-* **03_ping_flood_detector.cpp** - Wykrywanie ataków Ping Flood.
+* **03_ping_flood_detector.cpp** - Wykrywanie i alertowanie ataków typu ICMP Flood.
 ![Detekcja Flood](media/03_flood_detector.png)
 
-* **05_port_scan_detector.cpp** - Zaawansowana analiza stanowa (Stateful) i moduł Active Response (IPS). System automatycznie blokuje agresywne hosty w firewallu iptables po wykryciu wzorców skanowania (Port Sweep, Stealth Scan).
+* **05_port_scan_detector.cpp** - **Kluczowy moduł systemu.** Łączy w sobie:
+    * **Analizę stanową (Stateful):** Wykrywanie Port Sweep i Stealth Scan (nmap -sS).
+    * **Deep Packet Inspection (DPI):** Analiza warstwy L7 (Payload) pod kątem sygnatur SQL Injection i Path Traversal.
+    * **Active Response (IPS):** Automatyczna blokada IP napastnika w firewallu iptables.
 ![Detekcja Skanowania](media/05_port_scan_detector.png)
 ![Aktywna Blokada](media/05_2_port_scan_detector.png)
+![DPI i Payload Analysis](media/05_3_port_scan_detector_with_dpi.png)
 
 ## Analiza techniczna i wnioski
-W trakcie realizacji tych etapów skupiłem się na następujących zagadnieniach:
+W trakcie realizacji projektu zaimplementowano:
 
-* **Rzutowanie struktur (Pointer Casting):** Zrozumienie, w jaki sposób przesunięcie wskaźnika o 14 bajtów (rozmiar nagłówka Ethernet) pozwala na bezpośrednie mapowanie surowych danych z bufora na strukturę `iphdr`. Pozwala to na uniknięcie kosztownego kopiowania danych.
-* **Analiza warstwy transportowej:** Implementacja rozpoznawania protokołów TCP, UDP oraz ICMP na podstawie pola `protocol` w nagłówku IP.
-* **Detekcja anomalii:** Opracowanie algorytmu zliczającego pakiety w oknie czasowym (1 sekunda) w celu identyfikacji ataków typu Flood.
-* **Analiza stanowa (Stateful Analysis):** Implementacja mechanizmu "pamięci" sensora przy użyciu `std::map`. Pozwala to na korelację wielu pakietów od tego samego hosta w oknie czasowym, zamiast analizowania ich w izolacji.
-* **Wzorzec SYN-RST:** Opracowanie logiki wykrywającej specyficzne zachowanie skanerów (np. `nmap -sS`), które wysyłają pakiet RST natychmiast po otrzymaniu odpowiedzi, aby uniknąć pełnego zestawienia połączenia.
-* **Active Response (IPS):** Integracja sensora z systemowym firewallem. Wykorzystanie funkcji systemowych do dynamicznego nakładania reguł DROP, co pozwala na natychmiastową izolację agresywnego hosta.
+* **Pointer Arithmetic & L7 Offset:** Dynamiczne obliczanie przesunięcia wskaźnika (Ethernet + IP_len + TCP_len) w celu precyzyjnego dotarcia do danych aplikacji (Payload) bez narzutu wydajnościowego.
+* **Analiza stanowa (Stateful Analysis):** Wykorzystanie `std::map` do korelacji zdarzeń w oknie czasowym, co pozwala na odróżnienie pojedynczych połączeń od zorganizowanych skanów.
+* **Deep Packet Inspection (DPI):** Silnik przeszukujący payload pod kątem znanych sygnatur (np. `union select`, `/etc/passwd`). Zastosowano normalizację tekstu (Case Sensitivity), aby zwiększyć skuteczność detekcji.
+* **Active Response (IPS):** Integracja sensora z systemowym firewallem (`iptables`). System dynamicznie nakłada reguły `DROP` na adresy IP zidentyfikowane jako źródło ataku, realizując model obronny "Zero Trust".
 
 ## Plany rozwoju (Next steps)
-* **Active Response:** Implementacja modułu automatycznego blokowania adresów IP poprzez dynamiczną modyfikację reguł `iptables` po przekroczeniu progu alertowego.
-* **ICMP Anomaly Detection:** Rozszerzenie detekcji o analizę anomalii w protokole ICMP (nietypowe rozmiary pakietów, Ping Flood).
-* **Payload Inspection:** Wstępna analiza zawartości pakietów pod kątem znanych sygnatur exploitów.
+* **Szyna danych (Integration):** Implementacja Unix Domain Sockets do szybkiego przekazywania alertów z C++ do warstwy analitycznej w Pythonie.
+* **Web Dashboard:** Budowa interfejsu w Pythonie (FastAPI/Streamlit) do wizualizacji zagrożeń i zarządzania bazą zablokowanych hostów.
+* **Heurystyka:** Wprowadzenie prostych algorytmów oceny ryzyka dla hostów na podstawie historii ich aktywności.

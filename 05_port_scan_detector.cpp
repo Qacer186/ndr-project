@@ -7,6 +7,8 @@
 #include <set>
 #include <string>
 #include <ctime>
+#include <algorithm>
+#include <vector>
 
 // Connection state tracking
 struct ConnectionInfo {
@@ -35,6 +37,7 @@ void block_ip(std::string ip) {
 
 void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u_char *packet) {
     if (pkthdr->len < 34) return; // Ethernet (14) + IP (20) minimum
+
 
     struct iphdr *ip = (struct iphdr *)(packet + 14);
     char src_ip[INET_ADDRSTRLEN];
@@ -90,12 +93,42 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u
                 info.scanned_ports.clear(); 
             }
         }
+
+        // DPI Module
+        int ip_header_len = ihl;
+        int tcp_header_len = tcp->doff * 4;
+
+        // Extract payload
+        int total_headers_size = 14 + ip_header_len + tcp_header_len;
+        const u_char *payload = packet + total_headers_size;
+        int payload_len = pkthdr->len - total_headers_size;
+
+        if (payload_len > 0) {
+            std::string data((const char*)payload, payload_len);
+            std::string data_lower = data;
+            std::transform(data_lower.begin(), data_lower.end(), data_lower.begin(), ::tolower);
+
+            // Signatures to check
+            const std::vector<std::string> signatures = {
+                "union select", "drop table", "select * from",   // SQL Injection
+                "etc/passwd", "bin/sh", "cmd.exe",               // OS Commands / Traversal
+                "' or '1'='1", "' or 1=1"                        // Auth Bypass
+            };
+
+            for (const auto& sig : signatures) {
+                if (data_lower.find(sig) != std::string::npos) {
+                    std::cout << "!!! [DPI ALERT] Detected signature: " << sig << " from: " << ip_str << std::endl;
+                    block_ip(ip_str);
+                    break; // One hit is enough to block
+                }
+            }
+        }
     }
 }
 
 int main() {
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t* handle = pcap_open_live("eth0", 65535, 1, 1000, errbuf);
+    pcap_t* handle = pcap_open_live("lo", 65535, 1, 1000, errbuf);
 
     if (!handle) return 1;
 
