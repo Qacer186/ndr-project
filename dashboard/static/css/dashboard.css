@@ -1,0 +1,179 @@
+/* NDR Dashboard - Custom Styles */
+
+:root {
+    --bs-dark: #1a1a1a;
+    --bs-darker: #0d0d0d;
+    --bs-primary: #0d66f5;
+    --bs-danger: #dc3545;
+    --bs-warning: #ffc107;
+}
+
+body {
+    background-color: #0d0d0d;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.bg-darker {
+    background-color: #0d0d0d !important;
+    border: 1px solid #2a2a2a;
+}
+
+.card {
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+.card-title {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Stats Cards */
+.card.border-primary {
+    border-left: 4px solid #0d66f5 !important;
+}
+
+.card.border-warning {
+    border-left: 4px solid #ffc107 !important;
+}
+
+.card.border-danger {
+    border-left: 4px solid #dc3545 !important;
+}
+
+.card.border-info {
+    border-left: 4px solid #17a2b8 !important;
+}
+
+/* Tables */
+.table {
+    border-collapse: collapse;
+}
+
+.table thead th {
+    border-bottom: 2px solid #2a2a2a;
+    color: #b0b0b0;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+}
+
+.table tbody tr {
+    border-bottom: 1px solid #1a1a1a;
+}
+
+.table tbody tr:hover {
+    background-color: #1a1a1a;
+}
+
+.table-danger {
+    background-color: rgba(220, 53, 69, 0.1) !important;
+}
+
+.table-warning {
+    background-color: rgba(255, 193, 7, 0.1) !important;
+}
+
+/* Code/Badges */
+code {
+    background-color: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 4px;
+    padding: 2px 6px;
+    color: #4dd0e1;
+    font-size: 0.85rem;
+}
+
+.badge {
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Navigation */
+.navbar {
+    background-color: #0d0d0d !important;
+    border-bottom: 2px solid #0d66f5;
+}
+
+.navbar-brand {
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #0d66f5 !important;
+}
+
+/* Buttons */
+.btn-outline-secondary {
+    color: #b0b0b0;
+    border-color: #2a2a2a;
+}
+
+.btn-outline-secondary:hover {
+    background-color: #0d66f5;
+    border-color: #0d66f5;
+    color: #fff;
+}
+
+/* Charts */
+.chart-container {
+    position: relative;
+    height: 300px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0d0d0d;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #2a2a2a;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #3a3a3a;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.card {
+    animation: fadeIn 0.3s ease-in;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .table {
+        font-size: 0.85rem;
+    }
+}

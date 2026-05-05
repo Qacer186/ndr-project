@@ -1,13 +1,26 @@
-# Projekt NDR/IPS (Network Detection and Response)
-Zaawansowany system wykrywania i aktywnego reagowania na incydenty sieciowe w czasie rzeczywistym.
+# NDR System - Network Detection & Response v8
 
-## O Projekcie
-Celem projektu jest budowa niskopoziomowego sensora monitorującego ruch sieciowy. System nie tylko analizuje nagłówki pakietów, ale wykonuje głęboką inspekcję zawartości (DPI) i autonomicznie izoluje agresywne hosty.
+Profesjonalnej klasy system wykrywania intruzów sieciowych (NIDS) z funkcjami aktywnego reagowania (IPS).
 
-## Tech Stack
-* **Język:** C++ (Sensor), Python (Planowany Dashboard)
-* **Biblioteki:** libpcap, netinet
-* **Platforma:** Linux (x86/ARM) - Optymalizowane pod Mini PC/Terminal oraz Raspberry Pi.
+**Technologie**: C++17 (Sensor) | Python 3.9+ (Kontroler) | Flask (Dashboard) | libpcap | SQLite
+
+## Przegląd systemu
+
+System NDR to modularna, wielowarstwowa architektura bezpieczeństwa:
+- **Sensor (C++)** – Przechwytywanie pakietów i detekcja anomalii w czasie rzeczywistym (TCP/UDP/ICMP).
+- **Controller (Python)** – Archiwizacja alertów, zarządzanie blokadami IP oraz logika eskalacji incydentów.
+- **Dashboard (Flask)** – Wizualizacja danych w czasie rzeczywistym z interaktywnymi wykresami i kontrolą banów.
+
+**Kluczowe funkcjonalności:**
+- Detekcja skanowania portów (SYN sweep).
+- Wykrywanie skanowania Stealth (rozpoznawanie wzorców nmap -sS).
+- Detekcja ataków DoS/DDoS (limitowanie oparte na PPS).
+- Głęboka Inspekcja Pakietów (DPI: SQL Injection, RCE, XSS, Path Traversal).
+- Automatyczne blokowanie IP poprzez iptables.
+- Wielopoziomowa eskalacja blokad (5→10→60 min).
+- Webowy panel zarządzania incydentami.
+
+## Architektura
 
 ## Struktura Projektu i wyniki testów
 
@@ -28,6 +41,10 @@ Celem projektu jest budowa niskopoziomowego sensora monitorującego ruch sieciow
 ![Aktywna Blokada](media/05_2_port_scan_detector.png)
 ![DPI i Payload Analysis](media/05_3_port_scan_detector_with_dpi.png)
 
+* **Architektura Modularna v8 (Sensor + Dashboard)** -
+Logika rozbita na moduły (`src/`, `include/`), komunikacja IPC (Unix Sockets) z kontrolerem w Pythonie. Posiada interaktywny panel webowy (Flask) do zarządzania incydentami, odblokowywania IP (Unban) i wizualizacji ataków w czasie rzeczywistym.
+![NDR System Dashboard](media/06_ndr_system.png)
+
 ## Analiza techniczna i wnioski
 W trakcie realizacji projektu zaimplementowano:
 
@@ -37,6 +54,7 @@ W trakcie realizacji projektu zaimplementowano:
 * **Active Response (IPS):** Integracja sensora z systemowym firewallem (`iptables`). System dynamicznie nakłada reguły `DROP` na adresy IP zidentyfikowane jako źródło ataku, realizując model obronny "Zero Trust".
 
 ## Plany rozwoju (Next steps)
-* **Szyna danych (Integration):** Implementacja Unix Domain Sockets do szybkiego przekazywania alertów z C++ do warstwy analitycznej w Pythonie.
-* **Web Dashboard:** Budowa interfejsu w Pythonie (FastAPI/Streamlit) do wizualizacji zagrożeń i zarządzania bazą zablokowanych hostów.
-* **Heurystyka:** Wprowadzenie prostych algorytmów oceny ryzyka dla hostów na podstawie historii ich aktywności.
+* **Zarządzanie sprzętowe:** Przeniesienie sensora na dedykowany terminal z dwiema kartami sieciowymi (tryb Bridge).
+* **Powiadomienia:** Telegram Bot wysyłający raporty o krytycznych incydentach bezpośrednio na telefon.
+* **Heurystyka:** Implementacja algorytmów wykrywających anomalie statystyczne (np. nagły wzrost ruchu UDP).
+* **Optymalizacja:** Migracja silnika sygnatur na bibliotekę Hyperscan dla obsługi ruchu 10Gbps+.

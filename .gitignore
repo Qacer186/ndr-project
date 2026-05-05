@@ -1,5 +1,7 @@
-interface_test
-proto_sniffer
-flood_detector
+ndr_sensor
 learning_sandbox
 port_scan_detector
+*.o
+build/
+*.db
+__pycache__/
