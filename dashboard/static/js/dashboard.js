@@ -105,7 +105,7 @@ function loadBans() {
                     <td><span class="badge bg-warning">${ban.alert_count}</span></td>
                     <td>
                         <button class="btn btn-sm btn-outline-danger" 
-                                onclick="unbanIP('${ban.src_ip}')">
+                                onclick="unbanIp('${ban.src_ip}')">
                             <i class="bi bi-shield-check"></i> Unban
                         </button>
                     </td>
@@ -114,34 +114,6 @@ function loadBans() {
             });
         })
         .catch(error => console.error('[ERROR] Failed to load bans:', error));
-}
-
-// Unban an IP address
-function unbanIP(ip) {
-    if (!confirm(`Are you sure you want to unban ${ip}?`)) {
-        return;
-    }
-    
-    fetch(`/api/unban/${ip}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(`Successfully unbanned ${ip}`);
-            loadBans(); // Refresh bans list
-            loadStats(); // Refresh stats
-        } else {
-            alert(`Failed to unban ${ip}: ${data.error}`);
-        }
-    })
-    .catch(error => {
-        console.error('[ERROR] Failed to unban IP:', error);
-        alert(`Error unbanning ${ip}`);
-    });
 }
 
 // Refresh bans manually
@@ -270,4 +242,27 @@ function getSeverityColor(severity) {
     if (severity === 'CRITICAL') return 'danger';
     if (severity === 'WARNING') return 'warning';
     return 'info';
+}
+
+// Unban an IP address
+function unbanIp(ip) {
+    if (!confirm(`Czy na pewno chcesz odblokować IP: ${ip}?`)) return;
+
+    fetch(`/api/unban/${ip}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Pomyślnie odblokowano adres IP: ${ip}`);
+            loadBans();
+            loadStats();
+        } else {
+            alert('Wystąpił błąd podczas odblokowywania: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Wystąpił błąd podczas odblokowywania IP.');
+    });
 }

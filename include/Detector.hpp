@@ -31,13 +31,14 @@ struct ConnectionInfo {
     // General tracking
     int attack_count;
     time_t last_attack_time;
+    time_t last_packet_time;
 
     // Constructor
     ConnectionInfo() : 
         last_syn_time(0), last_syn_port(0), first_syn_time(0),
         stealth_hit_count(0), is_stealth_flagged(false),
         packet_count(0), last_reset(time(NULL)),
-        attack_count(0), last_attack_time(0) {}
+        attack_count(0), last_attack_time(0), last_packet_time(time(NULL)) {}
 };
 
 // ============== DETECTOR CLASS ==============
@@ -45,6 +46,9 @@ class Detector {
 private:
     std::map<std::string, ConnectionInfo> tracker;
     static Detector* instance;
+    
+    time_t last_cleanup_time;
+    void cleanup_old_connections();
 
     // ===== UTILITY METHODS =====
     std::string get_timestamp();

@@ -1,0 +1,19 @@
+
+╔════════════════════════════════════════╗
+║  NDR System v8 - Modular Sensor      ║
+║  include/ src/ architecture          ║
+╚════════════════════════════════════════╝
+
+[✓] Sensor initialized
+[✓] Monitoring: localhost (127.0.0.1)
+[✓] Protocols: TCP, UDP, ICMP
+[✓] Detectors:
+    - Port Scanning (SYN sweep)
+    - Stealth Scanning (SYN->RST pattern)
+    - DoS/DDoS (PPS-based)
+    - DPI (SQL, RCE, XSS, Path Traversal)
+[✓] Python listener: /tmp/ndr.sock
+
+[*] Listening for packets...
+
+[STEALTH] nmap -sS from 172.29.118.47

@@ -15,17 +15,18 @@ const std::string DB_PATH = "/tmp/ndr_alerts.db";
 // ============== WHITELIST ==============
 const std::set<std::string> WHITELIST = {
     "127.0.0.1",           // localhost
-    "::1",                 // localhost IPv6
-    "172.29.112.1",        // WSL2 gateway (typical)
-    "192.168.1.1",         // typical gateway
-    "192.168.0.1",         // typical gateway
-    "10.0.0.1"             // typical gateway (private)
+    //"::1",                 // localhost IPv6
+    //"172.29.112.1",        // WSL2 gateway (typical)
+    //"192.168.1.1",         // typical gateway
+    //"192.168.0.1",         // typical gateway
+    //"10.0.0.1"             // typical gateway (private)
 };
 
 // ============== DETECTION THRESHOLDS ==============
 const int PORT_SCAN_THRESHOLD = 5;              // porty w ciągu 5s
 const int STEALTH_PATTERN_THRESHOLD = 3;        // SYN->RST powtórzenia
-const int STEALTH_TIME_WINDOW = 1;              // okno czasowe (sekundy)
+const int STEALTH_TIME_WINDOW = 300;            // Zwiększone do 5 minut (300 sekund)
+const int PORT_SCAN_TIME_WINDOW = 300;          // Dodajemy okno dla zwykłego skanowania portów
 const int DOS_PACKET_THRESHOLD = 500;           // pakiety/s
 const int DOS_TIME_WINDOW = 1;                  // sekundy
 

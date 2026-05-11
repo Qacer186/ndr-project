@@ -19,7 +19,7 @@ Detector* Detector::instance = nullptr;
 
 std::string Detector::get_timestamp() {
     time_t now = time(0);
-    struct tm *timeinfo = localtime(&now);
+    struct tm *timeinfo = gmtime(&now);
     char buffer[25];
     strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", timeinfo);
     return std::string(buffer);
@@ -144,8 +144,8 @@ void Detector::detect_port_scan(const std::string& ip, uint16_t d_port) {
     time_t now = time(NULL);
     ConnectionInfo &info = tracker[ip];
 
-    // Reset window after 5s of inactivity
-    if (info.first_syn_time == 0 || (now - info.first_syn_time) > 5) {
+    // Reset window after inactivity
+    if (info.first_syn_time == 0 || (now - info.first_syn_time) > Config::PORT_SCAN_TIME_WINDOW) {
         info.first_syn_time = now;
         info.scanned_ports.clear();
     }
@@ -301,12 +301,16 @@ void Detector::handle_icmp(const struct pcap_pkthdr *pkthdr, const u_char *packe
 // ============== MAIN HANDLER ==============
 
 void Detector::handle_packet(const struct pcap_pkthdr *pkthdr, const u_char *packet) {
+    cleanup_old_connections();
+
     if (pkthdr->len < 34) return;
 
     struct iphdr *ip = (struct iphdr *)(packet + 14);
     char src_ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(ip->saddr), src_ip, INET_ADDRSTRLEN);
     std::string ip_str(src_ip);
+
+    tracker[ip_str].last_packet_time = time(NULL);
 
     // Check whitelist
     if (Config::WHITELIST.count(ip_str)) {
@@ -328,6 +332,22 @@ void Detector::handle_packet(const struct pcap_pkthdr *pkthdr, const u_char *pac
 
 int Detector::get_tracker_size() const {
     return tracker.size();
+}
+
+void Detector::cleanup_old_connections() {
+    time_t now = time(NULL);
+    // Cleanup each minute to prevent memory bloat
+    if (now - last_cleanup_time < 60) return;
+
+    for (auto it = tracker.begin(); it != tracker.end(); ) {
+        // Deleting connections that haven't seen activity for 5 minutes
+        if (now - it->second.last_packet_time > 300) {
+            it = tracker.erase(it); // Safe erase while iterating
+        } else {
+            ++it;
+        }
+    }
+    last_cleanup_time = now;
 }
 
 } // namespace NDR
