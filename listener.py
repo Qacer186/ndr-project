@@ -24,7 +24,7 @@ DB_PATH = "/tmp/ndr_alerts.db"
 BAN_POLICIES = {
     "INFO": (5, 10),           # 5 min ban if 10 INFO events in 1 min
     "WARNING": (10, 5),        # 10 min ban if 5 WARNING events
-    "CRITICAL": (60, 2)        # 60 min ban if 2+ CRITICAL events
+    "CRITICAL": (60, 1)        # 60 min ban if 1 CRITICAL event
 }
 
 # ============== DATABASE SETUP ==============
@@ -107,99 +107,104 @@ def is_ip_banned(ip):
 
 
 def add_ban(ip, reason, duration_minutes):
-    """Add or update IP ban."""
+    """Add or update IP ban with duplicate prevention."""
     if ip == "127.0.0.1" or ip.startswith("192.168."):
         print(f"[SKIP] IP {ip} nie może być zbanowany (whitelist)")
         return False
     
+    conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, timeout=10)
         cursor = conn.cursor()
         
-        # Check if already banned
         cursor.execute('''
-            SELECT id, ban_duration_minutes, alert_count FROM ip_bans 
-            WHERE src_ip = ? AND status = 'active'
+            SELECT id, ban_duration_minutes, alert_count, status FROM ip_bans 
+            WHERE src_ip = ?
         ''', (ip,))
         
         existing = cursor.fetchone()
         ban_end = (datetime.now() + timedelta(minutes=duration_minutes)).isoformat()
         
+        need_iptables = False
+        
         if existing:
-            ban_id, existing_duration, alert_count = existing
-            # Escalate: increase ban duration
-            new_duration = min(existing_duration + duration_minutes, 1440)  # max 24h
-            new_alert_count = alert_count + 1
+            ban_id, existing_duration, alert_count, status = existing
             
-            cursor.execute('''
-                UPDATE ip_bans 
-                SET ban_duration_minutes = ?, 
-                    ban_end = ?,
-                    alert_count = ?,
-                    ban_reason = ?
-                WHERE id = ?
-            ''', (new_duration, ban_end, new_alert_count, reason, ban_id))
-            
-            print(f"[ESCALATE] Ban na {ip} został przedłużony (licznik: {new_alert_count})")
+            if status == 'active':
+                # Only escalate if it's a new critical event, otherwise skip to prevent duplicates
+                new_duration = min(existing_duration + duration_minutes, 1440)
+                new_alert_count = alert_count + 1
+                cursor.execute('''
+                    UPDATE ip_bans 
+                    SET ban_duration_minutes = ?, ban_end = ?, alert_count = ?, ban_reason = ?
+                    WHERE id = ?
+                ''', (new_duration, ban_end, new_alert_count, reason, ban_id))
+                print(f"[ESCALATE] Ban na {ip} wydłużony (Licznik: {new_alert_count}). Firewall bez zmian.")
+            else:
+                # Activate existing ban
+                cursor.execute('''
+                    UPDATE ip_bans 
+                    SET ban_duration_minutes = ?, ban_end = ?, alert_count = 1, ban_reason = ?, status = 'active', ban_start = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (duration_minutes, ban_end, reason, ban_id))
+                print(f"[BAN] IP {ip} ponownie zbanowany ({reason})")
+                need_iptables = True
         else:
             # New ban
             cursor.execute('''
                 INSERT INTO ip_bans (src_ip, ban_reason, ban_duration_minutes, ban_end)
                 VALUES (?, ?, ?, ?)
             ''', (ip, reason, duration_minutes, ban_end))
+            print(f"[BAN] IP {ip} zbanowany ({reason})")
+            need_iptables = True
             
-            print(f"[BAN] IP {ip} zbanowany na {duration_minutes} minut ({reason})")
-            
-            # Apply iptables rule (requires sudo or running as root)
+        # Call iptables only if it's a new ban or escalation that requires it, to prevent duplicates
+        if need_iptables:
             try:
-                subprocess.run(
-                    f"iptables -A INPUT -s {ip} -j DROP",
-                    shell=True,
-                    check=False,
-                    capture_output=True
-                )
+                subprocess.run(f"iptables -A INPUT -s {ip} -j DROP", shell=True, check=False, capture_output=True)
             except Exception as e:
-                print(f"[WARN] iptables może wymagać sudo: {e}")
-        
+                print(f"[WARN] Command execution failed: {e}")
+                
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         print(f"[ERROR] Błąd przy dodawaniu banu: {e}")
         return False
-
+    finally:
+        if conn:
+            conn.close()
 
 def remove_ban(ip):
-    """Remove IP ban and iptables rule."""
+    """Remove IP ban and aggressively clean all iptables rules."""
+    conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, timeout=10)
         cursor = conn.cursor()
         
-        # Mark as inactive
-        cursor.execute('''
-            UPDATE ip_bans SET status = 'inactive' WHERE src_ip = ?
-        ''', (ip,))
-        
+        cursor.execute("UPDATE ip_bans SET status = 'inactive' WHERE src_ip = ?", (ip,))
         conn.commit()
-        conn.close()
         
-        # Remove iptables rule
-        try:
-            subprocess.run(
+        # Loop to remove all matching iptables rules for this IP (in case of duplicates)
+        removed_count = 0
+        while True:
+            result = subprocess.run(
                 f"iptables -D INPUT -s {ip} -j DROP",
                 shell=True,
-                check=False,
-                capture_output=True
+                stderr=subprocess.DEVNULL, # Ukrywamy błędy, gdy reguł już nie ma
+                stdout=subprocess.DEVNULL
             )
-            print(f"[UNBAN] IP {ip} rozbanowany i usunięty z iptables")
-        except Exception as e:
-            print(f"[WARN] Błąd przy usuwaniu reguły iptables: {e}")
-        
+            if result.returncode != 0:
+                break # Stop when no more rules to delete
+            removed_count += 1
+            
+        print(f"[UNBAN] IP {ip} odblokowany. Usunięto reguł z firewalla: {removed_count}")
         return True
     except Exception as e:
         print(f"[ERROR] Błąd przy usuwaniu banu: {e}")
         return False
-
+    finally:
+        if conn:
+            conn.close()
 
 def cleanup_expired_bans():
     """Check for expired bans and remove them."""
@@ -225,8 +230,9 @@ def cleanup_expired_bans():
 
 def log_alert(alert_json):
     """Log alert to database."""
+    conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, timeout=10)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -247,9 +253,11 @@ def log_alert(alert_json):
         ))
         
         conn.commit()
-        conn.close()
     except Exception as e:
         print(f"[ERROR] Błąd przy logowaniu alertu: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 
 def track_attack_frequency(ip):
@@ -317,8 +325,11 @@ def process_alert(alert_json):
     
     # Check if already banned
     if is_ip_banned(src_ip):
-        print(f"[SKIP] IP {src_ip} już zbanowany, ignoruję powtarzające się alerty")
-        return
+        if severity != "CRITICAL":
+            print(f"[SKIP] IP {src_ip} już zbanowany, ignoruję powtarzające się alerty")
+            return
+        else:
+            print(f"[UPGRADE] Zdarzenie krytyczne! Eskalacja bana dla IP: {src_ip}")
     
     # Track frequency and check escalation
     attack_count = track_attack_frequency(src_ip)

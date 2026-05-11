@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import threading
 import time
+import socket 
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
@@ -149,6 +150,21 @@ def api_bans():
         return jsonify({'bans': bans})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/unban/<ip>', methods=['POST'])
+def unban_ip(ip):
+    try:
+        # Connect to listener socket
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client.connect('/tmp/ndr.sock')
+
+        msg = json.dumps({'type': 'unban', 'ip': ip})
+        client.send(msg.encode('utf-8'))
+        client.close()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/timeline')
 def api_timeline():
