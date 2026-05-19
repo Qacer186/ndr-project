@@ -15,6 +15,7 @@ import time
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
+import requests
 
 # ============== CONFIGURATION ==============
 SOCK_PATH = "/tmp/ndr.sock"
@@ -320,6 +321,10 @@ def process_alert(alert_json):
     severity = alert_json.get('severity_name', 'INFO')
     alert_type = alert_json.get('type', 'Unknown')
     
+    if severity == "CRITICAL":
+        msg = f"🚨 ALARM NDR!\nWykryto atak: {alert_type}\nŹródło: {src_ip}\nPoziom: {severity}"
+        send_telegram_alert(msg)
+    
     # Log alert
     log_alert(alert_json)
     
@@ -455,6 +460,34 @@ def print_stats():
         print("="*50 + "\n")
     except Exception as e:
         print(f"[ERROR] Błąd przy wyświetlaniu statystyk: {e}")
+
+# ============== TELEGRAM NOTIFICATIONS ==============
+
+def send_telegram_alert(message):
+    secrets_path = Path("secrets.json")
+    
+    # Zabezpieczenie: jeśli pliku nie ma, po prostu pomiń wysyłanie
+    if not secrets_path.exists():
+        return
+        
+    try:
+        with open(secrets_path, "r") as f:
+            secrets = json.load(f)
+            
+        token = secrets.get("TELEGRAM_TOKEN")
+        chat_id = secrets.get("TELEGRAM_CHAT_ID")
+        
+        if not token or not chat_id:
+            return
+            
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        payload = {"chat_id": chat_id, "text": message}
+        
+        # Timeout dodany, żeby nie zablokować listenera jak Telegram ma awarię
+        requests.post(url, data=payload, timeout=3) 
+        
+    except Exception as e:
+        print(f"[ERROR] Telegram notification failed: {e}")
 
 
 # ============== MAIN ==============

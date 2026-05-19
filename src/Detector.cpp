@@ -217,11 +217,11 @@ void Detector::detect_dpi(const u_char *payload, int payload_len, const std::str
 // ============== PROTOCOL HANDLERS ==============
 
 void Detector::handle_tcp(const struct pcap_pkthdr *pkthdr, const u_char *packet,
-                          const iphdr *ip, uint16_t src_port, uint16_t dest_port) {
+                          const iphdr *ip, uint16_t src_port, uint16_t dest_port, int link_offset) {
     int ihl = ip->ihl * 4;
-    if (pkthdr->len < 14 + ihl + 20) return;
+    if (pkthdr->len < (bpf_u_int32)(link_offset + ihl + 20)) return;
 
-    struct tcphdr *tcp = (struct tcphdr *)(packet + 14 + ihl);
+    struct tcphdr *tcp = (struct tcphdr *)(packet + link_offset + ihl);
     char src_ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(ip->saddr), src_ip, INET_ADDRSTRLEN);
     std::string ip_str(src_ip);
@@ -229,26 +229,22 @@ void Detector::handle_tcp(const struct pcap_pkthdr *pkthdr, const u_char *packet
     time_t now = time(NULL);
     ConnectionInfo &info = tracker[ip_str];
 
-    // DoS detection
     detect_dos(ip_str);
 
-    // SYN packet analysis
     if (tcp->syn && !tcp->ack) {
         info.last_syn_time = now;
         info.last_syn_port = dest_port;
         detect_port_scan(ip_str, dest_port);
     }
 
-    // RST packet - stealth scan indicator
     if (tcp->rst) {
         detect_stealth_scan(ip_str, dest_port);
     }
 
-    // DPI - payload inspection
     int tcp_header_len = tcp->doff * 4;
-    int total_headers_size = 14 + ihl + tcp_header_len;
+    int total_headers_size = link_offset + ihl + tcp_header_len;
 
-    if (total_headers_size < pkthdr->len) {
+    if (total_headers_size < (int)pkthdr->len) {
         const u_char *payload = packet + total_headers_size;
         int payload_len = pkthdr->len - total_headers_size;
         detect_dpi(payload, payload_len, ip_str, dest_port);
@@ -256,26 +252,22 @@ void Detector::handle_tcp(const struct pcap_pkthdr *pkthdr, const u_char *packet
 }
 
 void Detector::handle_udp(const struct pcap_pkthdr *pkthdr, const u_char *packet,
-                          const iphdr *ip, uint16_t src_port, uint16_t dest_port) {
-    (void)src_port;  // Suppress unused parameter warning
-    
+                          const iphdr *ip, uint16_t src_port, uint16_t dest_port, int link_offset) {
+    (void)src_port;  
     char src_ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(ip->saddr), src_ip, INET_ADDRSTRLEN);
     std::string ip_str(src_ip);
 
-    // DoS detection for UDP
     detect_dos(ip_str);
 
     int ihl = ip->ihl * 4;
-    int udp_header_size = 14 + ihl + 8;
+    int udp_header_size = link_offset + ihl + 8;
 
-    // Check for DNS amplification (port 53 with large response)
     if (dest_port == 53 && pkthdr->len > 512) {
         std::cout << "[DNS] Large response to " << ip_str << std::endl;
     }
 
-    // DPI for UDP payload
-    if (udp_header_size < pkthdr->len) {
+    if (udp_header_size < (int)pkthdr->len) {
         const u_char *payload = packet + udp_header_size;
         int payload_len = pkthdr->len - udp_header_size;
         detect_dpi(payload, payload_len, ip_str, dest_port);
@@ -283,16 +275,13 @@ void Detector::handle_udp(const struct pcap_pkthdr *pkthdr, const u_char *packet
 }
 
 void Detector::handle_icmp(const struct pcap_pkthdr *pkthdr, const u_char *packet,
-                           const iphdr *ip, const std::string& src_ip) {
+                           const iphdr *ip, const std::string& src_ip, int link_offset) {
     int ihl = ip->ihl * 4;
-    if (pkthdr->len < 14 + ihl + 8) return;
+    if (pkthdr->len < (bpf_u_int32)(link_offset + ihl + 8)) return;
 
-    struct icmphdr *icmp = (struct icmphdr *)(packet + 14 + ihl);
-    
-    // Detect ICMP Flood / Smurf
+    struct icmphdr *icmp = (struct icmphdr *)(packet + link_offset + ihl);
     detect_dos(src_ip);
 
-    // Type 8 = Echo Request (Ping)
     if (icmp->type == 8) {
         std::cout << "[ICMP] Echo request from " << src_ip << std::endl;
     }
@@ -300,33 +289,32 @@ void Detector::handle_icmp(const struct pcap_pkthdr *pkthdr, const u_char *packe
 
 // ============== MAIN HANDLER ==============
 
-void Detector::handle_packet(const struct pcap_pkthdr *pkthdr, const u_char *packet) {
+void Detector::handle_packet(const struct pcap_pkthdr *pkthdr, const u_char *packet, int link_offset) {
     cleanup_old_connections();
 
-    if (pkthdr->len < 34) return;
+    if (pkthdr->len < (bpf_u_int32)(link_offset + 20)) return;
 
-    struct iphdr *ip = (struct iphdr *)(packet + 14);
+    struct iphdr *ip = (struct iphdr *)(packet + link_offset);
     char src_ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(ip->saddr), src_ip, INET_ADDRSTRLEN);
     std::string ip_str(src_ip);
 
     tracker[ip_str].last_packet_time = time(NULL);
 
-    // Check whitelist
     if (Config::WHITELIST.count(ip_str)) {
         return;
     }
 
     if (ip->protocol == IPPROTO_TCP) {
-        struct tcphdr *tcp = (struct tcphdr *)(packet + 14 + (ip->ihl * 4));
-        handle_tcp(pkthdr, packet, ip, ntohs(tcp->source), ntohs(tcp->dest));
+        struct tcphdr *tcp = (struct tcphdr *)(packet + link_offset + (ip->ihl * 4));
+        handle_tcp(pkthdr, packet, ip, ntohs(tcp->source), ntohs(tcp->dest), link_offset);
     }
     else if (ip->protocol == IPPROTO_UDP) {
-        struct udphdr *udp = (struct udphdr *)(packet + 14 + (ip->ihl * 4));
-        handle_udp(pkthdr, packet, ip, ntohs(udp->source), ntohs(udp->dest));
+        struct udphdr *udp = (struct udphdr *)(packet + link_offset + (ip->ihl * 4));
+        handle_udp(pkthdr, packet, ip, ntohs(udp->source), ntohs(udp->dest), link_offset);
     }
     else if (ip->protocol == IPPROTO_ICMP) {
-        handle_icmp(pkthdr, packet, ip, ip_str);
+        handle_icmp(pkthdr, packet, ip, ip_str, link_offset);
     }
 }
 
@@ -336,13 +324,11 @@ int Detector::get_tracker_size() const {
 
 void Detector::cleanup_old_connections() {
     time_t now = time(NULL);
-    // Cleanup each minute to prevent memory bloat
     if (now - last_cleanup_time < 60) return;
 
     for (auto it = tracker.begin(); it != tracker.end(); ) {
-        // Deleting connections that haven't seen activity for 5 minutes
         if (now - it->second.last_packet_time > 300) {
-            it = tracker.erase(it); // Safe erase while iterating
+            it = tracker.erase(it); 
         } else {
             ++it;
         }

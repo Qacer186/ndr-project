@@ -125,19 +125,35 @@ function refreshBans() {
 function updateSeverityChart(data) {
     const ctx = document.getElementById('severity-chart');
     if (!ctx) return;
-    
-    const labels = Object.keys(data);
-    const values = Object.values(data);
-    
+
     const colors = {
         'INFO': 'rgba(13, 110, 253, 0.8)',      // Blue
         'WARNING': 'rgba(255, 193, 7, 0.8)',    // Yellow
         'CRITICAL': 'rgba(220, 53, 69, 0.8)'    // Red
     };
-    
+
+    const normalized = {};
+    if (data && typeof data === 'object') {
+        Object.entries(data).forEach(([label, value]) => {
+            const key = label ? label.toString().toUpperCase() : 'UNKNOWN';
+            normalized[key] = (normalized[key] || 0) + Number(value || 0);
+        });
+    }
+
+    let labels = Object.keys(normalized);
+    let values = Object.values(normalized);
+    let backgroundColor = labels.map(label => colors[label] || 'rgba(108, 117, 125, 0.8)');
+
+    if (labels.length === 0) {
+        labels = ['No alerts'];
+        values = [1];
+        backgroundColor = ['rgba(108, 117, 125, 0.3)'];
+    }
+
     if (charts.severity) {
         charts.severity.data.labels = labels;
         charts.severity.data.datasets[0].data = values;
+        charts.severity.data.datasets[0].backgroundColor = backgroundColor;
         charts.severity.update();
     } else {
         charts.severity = new Chart(ctx, {
@@ -146,7 +162,7 @@ function updateSeverityChart(data) {
                 labels: labels,
                 datasets: [{
                     data: values,
-                    backgroundColor: labels.map(l => colors[l])
+                    backgroundColor: backgroundColor
                 }]
             },
             options: {
