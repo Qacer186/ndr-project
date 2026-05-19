@@ -321,7 +321,7 @@ def process_alert(alert_json):
     severity = alert_json.get('severity_name', 'INFO')
     alert_type = alert_json.get('type', 'Unknown')
     
-    if severity == "CRITICAL":
+    if severity == "CRITICAL" or severity == "WARNING":
         msg = f"🚨 ALARM NDR!\nWykryto atak: {alert_type}\nŹródło: {src_ip}\nPoziom: {severity}"
         send_telegram_alert(msg)
     
